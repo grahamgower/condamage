@@ -45,15 +45,14 @@ def parse_condamage(fn):
 
 def parse_args():
     import argparse
-    parser = argparse.ArgumentParser(description="plot histogram for 1 column of input file")
-    parser.add_argument("-u", action="store_false", default=True, help="plot unconditional mismatches [%(default)s]")
-    parser.add_argument("-5", dest="c5", action="store_false", default=True, help="plot mismatches conditional on 5' C>T [%(default)s]")
-    parser.add_argument("-3", dest="c3", action="store_false", default=True, help="plot mismatches conditional on 3' G>A [%(default)s]")
-    parser.add_argument("-s", "--scale", type=float, default=1.5, help="scale the size of the plot [%(default)s]")
-    parser.add_argument("-w", "--wide", action="store_false", default=True, help="plot widescreen ratio (16x9) [%(default)s]")
-    parser.add_argument("-o", "--opdf", type=str, default="out.pdf", help="output filename [%(default)s]")
-    parser.add_argument("--title", type=str, help="plot title")
-    parser.add_argument("infile", help="input file")
+    parser = argparse.ArgumentParser(description="Plot conditional damage profile, from `condamage' output.")
+    parser.add_argument("-a", "--all", action="store_true", default=False, help="plot all conditional traces [%(default)s]")
+    parser.add_argument("-s", "--singlestranded", action="store_true", default=False, help="plot mismatches conditional on C>T at either end [%(default)s]")
+    parser.add_argument("--scale", type=float, default=1.5, help="scale the size of the plot [%(default)s]")
+    parser.add_argument("--wide", action="store_false", default=True, help="plot widescreen ratio (16x9) [%(default)s]")
+    parser.add_argument("-o", "--opdf", metavar="out.pdf", type=str, default="out.pdf", help="output filename [%(default)s]")
+    parser.add_argument("-t", "--title", type=str, help="title for the plot")
+    parser.add_argument("infile", metavar="condamage.txt", help="input file, produced by `condamage'")
     args = parser.parse_args()
     return args
 
@@ -77,50 +76,62 @@ if __name__ == "__main__":
     if not args.title:
         args.title = os.path.basename(args.infile)
 
-    ctxlist = []
-    lslist = []
-    mlist = []
-    labels = []
-    if args.u:
-        ctxlist.extend(["C2T", "G2A"])
-        lslist.extend(["-", "-"])
-        mlist.extend(["o", "s"])
-        labels.extend(["$C \\rightarrow T$",
-                        "$G \\rightarrow A$"])
-    if args.c5:
-        ctxlist.extend(["COND5_C2T", "COND5_G2A"])
-        lslist.extend([":", ":"])
-        mlist.extend(["<", ">"])
-        labels.extend(["$C \\rightarrow T\,\ \mid\ 5^{\prime}\ C \\rightarrow T$",
-                        "$G \\rightarrow A\ \mid\ 5^{\prime}\ C \\rightarrow T$"])
-    if args.c3:
-        ctxlist.extend(["COND3_C2T", "COND3_G2A"])
-        lslist.extend(["--", "--"])
-        mlist.extend(["d", "*"])
-        labels.extend(["$C \\rightarrow T\,\ \mid\ 3^{\prime}\ G \\rightarrow A$",
-                        "$G \\rightarrow A\ \mid\ 3^{\prime}\ G \\rightarrow A$"])
+    col = iter(plt.get_cmap("tab20").colors)
+    alpha = 1.0
+
+    plotmeta = collections.OrderedDict([
+            # key: (edgecolour, facecolour, linestyle, marker, label)
+            ("C2T?", (next(col), next(col), "-", "o", "$C \\rightarrow T$")),
+            ("G2A?", (next(col), next(col), "--", "s", "$G \\rightarrow A$")),
+
+            ("C2T?|5C2T", (next(col), next(col), ":", "<", "$C \\rightarrow T\,\ \mid\ 5^{\prime}\ C \\rightarrow T$")),
+            ("G2A?|5C2T", (next(col), next(col), ":", ">", "$G \\rightarrow A\ \mid\ 5^{\prime}\ C \\rightarrow T$")),
+            ("C2T?|3C2T", (next(col), next(col), ":", "x", "$C \\rightarrow T\,\ \mid\ 3^{\prime}\ C \\rightarrow T$")),
+            ("G2A?|3C2T", (next(col), next(col), ":", "d", "$G \\rightarrow A\ \mid\ 3^{\prime}\ C \\rightarrow T$")),
+
+            ("C2T?|5G2A", (next(col), next(col), ":", "^", "$C \\rightarrow T\,\ \mid\ 5^{\prime}\ G \\rightarrow A$")),
+            ("G2A?|5G2A", (next(col), next(col), ":", "v", "$G \\rightarrow A\ \mid\ 5^{\prime}\ G \\rightarrow A$")),
+            ("C2T?|3G2A", (next(col), next(col), ":", "*", "$C \\rightarrow T\,\ \mid\ 3^{\prime}\ G \\rightarrow A$")),
+            ("G2A?|3G2A", (next(col), next(col), ":", "p", "$G \\rightarrow A\ \mid\ 3^{\prime}\ G \\rightarrow A$")),
+        ])
+
+    if args.all:
+        k5list = plotmeta.keys()
+        k3list = plotmeta.keys()
+    elif args.singlestranded:
+        k5list = ["C2T?", "G2A?", "C2T?|3C2T"]
+        k3list = ["C2T?", "G2A?", "C2T?|5C2T"]
+    else:
+        k5list = ["C2T?", "G2A?", "C2T?|3G2A"]
+        k3list = ["C2T?", "G2A?", "G2A?|5C2T"]
 
     xmax = 0
     ymax = 0
-    for ctx, ls, marker, label in zip(ctxlist,lslist,mlist,labels):
-        ctx5 = ctx+"5"
-        ctx3 = ctx+"3"
-        assert ctx5 in data, "{} missing from {}".format(ctx5, args.infile)
-        assert ctx3 in data, "{} missing from {}".format(ctx3, args.infile)
-        ax1.plot(data[ctx5][0], data[ctx5][1], marker=marker, linestyle=ls, label=label)
-        ax2.plot(data[ctx3][0], data[ctx3][1], marker=marker, linestyle=ls, label=label)
+    for k in k5list:
+        k5 = k.replace("?", "5", 1)
+        assert k5 in data, "{} missing from {}".format(k5, args.infile)
+        ecol, col, ls, m, lbl = plotmeta[k]
+        ax1.plot(data[k5][0], data[k5][1], color=col, markeredgecolor=ecol, linestyle=ls, marker=m, label=lbl, alpha=alpha)
 
-        if data[ctx5][0][-1] > xmax:
-            xmax = data[ctx5][0][-1]
-        if data[ctx3][0][-1] > xmax:
-            xmax = data[ctx3][0][-1]
+        if data[k5][0][-1] > xmax:
+            xmax = data[k5][0][-1]
 
-        if ctx != "COND5_C2T":
-            if max(data[ctx5][1]) > ymax:
-                ymax = max(data[ctx5][1])
-        if ctx != "COND3_G2A":
-            if max(data[ctx3][1]) > ymax:
-                ymax = max(data[ctx3][1])
+        kmax = max(data[k5][1])
+        if kmax != 1.0 and kmax > ymax:
+            ymax = kmax
+
+    for k in k3list:
+        k3 = k.replace("?", "3", 1)
+        assert k3 in data, "{} missing from {}".format(k3, args.infile)
+        ecol, col, ls, m, lbl = plotmeta[k]
+        ax2.plot(data[k3][0], data[k3][1], color=col, markeredgecolor=ecol, linestyle=ls, marker=m, label=lbl, alpha=alpha)
+
+        if data[k3][0][-1] > xmax:
+            xmax = data[k3][0][-1]
+
+        kmax = max(data[k3][1])
+        if kmax != 1.0 and kmax > ymax:
+            ymax = kmax
 
     ax2.set_ylim([0, ymax*1.1])
 
@@ -138,7 +149,8 @@ if __name__ == "__main__":
     ax2.set_xlabel("Mismatches towards 3' end", labelpad=10)
     ax1.set_ylabel("Frequency")
     ax2.yaxis.tick_right()
-    ax1.legend()
+    ax1.legend(loc="upper right")
+    ax2.legend(loc="upper left")
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     pdf.savefig()

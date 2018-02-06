@@ -80,14 +80,23 @@ condamage(opt_t *opt)
 	char *ref = NULL;
 	bam1_t *b;
 
-	struct {
+	enum {_5C2T=0, _3C2T, _5G2A, _3G2A};
+#define COND_5C2T (1<<_5C2T)
+#define COND_3C2T (1<<_3C2T)
+#define COND_5G2A (1<<_5G2A)
+#define COND_3G2A (1<<_3G2A)
+
+	struct counts {
 		// unconditional
 		uint64_t c, c2t, g, g2a;
+
 		// conditional
 		struct {
 			uint64_t c, c2t, g, g2a;
-		} cond5, cond3;
-	} *counts5, *counts3;
+		} cond[4];
+
+	} *counts5, // counts for the window towards the 5' end
+	  *counts3; // counts for the window towards the 3' end
 
 	counts5 = calloc(opt->window, sizeof(*counts5));
 	if (counts5 == NULL) {
@@ -144,11 +153,12 @@ condamage(opt_t *opt)
 			continue;
 
 		int op;
-		int cond = 0;
 		int j;
 		int x, // offset in ref
 		    y; // offset in query seq
 		char c1, c2;
+
+		int cond = 0;
 
 		uint8_t *seq = bam_get_seq(b);
 		uint32_t *cigar = bam_get_cigar(b);
@@ -173,9 +183,16 @@ condamage(opt_t *opt)
 
 			if (c2 == 'C' && c1 == 'T') {
 				if (bam_is_rev(b))
-					cond |= 0x2;
+					cond |= COND_3G2A;
 				else
-					cond |= 0x1;
+					cond |= COND_5C2T;
+			}
+
+			if (c2 == 'G' && c1 == 'A') {
+				if (bam_is_rev(b))
+					cond |= COND_3C2T;
+				else
+					cond |= COND_5G2A;
 			}
 		}
 
@@ -187,9 +204,16 @@ condamage(opt_t *opt)
 
 			if (c2 == 'G' && c1 == 'A') {
 				if (bam_is_rev(b))
-					cond |= 0x1;
+					cond |= COND_5C2T;
 				else
-					cond |= 0x2;
+					cond |= COND_3G2A;
+			}
+
+			if (c2 == 'C' && c1 == 'T') {
+				if (bam_is_rev(b))
+					cond |= COND_5G2A;
+				else
+					cond |= COND_3C2T;
 			}
 		}
 
@@ -209,36 +233,31 @@ condamage(opt_t *opt)
 					c1 = seq_nt16_str[bam_seqi(seq, z1)];
 					c2 = ref[x+j];
 
+// update counts
+#define c_update(cnt, z, var) \
+	do { \
+		unsigned k; \
+		cnt[z].var++; \
+		for (k=0; k<4; k++) { \
+			if (cond & (1<<k)) \
+				cnt[z].cond[k].var++; \
+		} \
+	} while (0)
+
 					// ref has C
 					if (c2 == 'C') {
 
 						if (bam_is_rev(b)) {
 							if (z1 < opt->window) {
-								counts3[z1].g++;
-								if (cond & 0x1)
-									counts3[z1].cond5.g++;
-								if (cond & 0x2)
-									counts3[z1].cond3.g++;
+								c_update(counts3, z1, g);
 							} else if (z2 < opt->window) {
-								counts5[z2].g++;
-								if (cond & 0x1)
-									counts5[z2].cond5.g++;
-								if (cond & 0x2)
-									counts5[z2].cond3.g++;
+								c_update(counts5, z2, g);
 							}
 						} else {
 							if (z1 < opt->window) {
-								counts5[z1].c++;
-								if (cond & 0x1)
-									counts5[z1].cond5.c++;
-								if (cond & 0x2)
-									counts5[z1].cond3.c++;
+								c_update(counts5, z1, c);
 							} else if (z2 < opt->window) {
-								counts3[z2].c++;
-								if (cond & 0x1)
-									counts3[z2].cond5.c++;
-								if (cond & 0x2)
-									counts3[z2].cond3.c++;
+								c_update(counts3, z2, c);
 							}
 						}
 
@@ -246,31 +265,15 @@ condamage(opt_t *opt)
 						if (c1 == 'T') {
 							if (bam_is_rev(b)) {
 								if (z1 < opt->window) {
-									counts3[z1].g2a++;
-									if (cond & 0x1)
-										counts3[z1].cond5.g2a++;
-									if (cond & 0x2)
-										counts3[z1].cond3.g2a++;
+									c_update(counts3, z1, g2a);
 								} else if (z2 < opt->window) {
-									counts5[z2].g2a++;
-									if (cond & 0x1)
-										counts5[z2].cond5.g2a++;
-									if (cond & 0x2)
-										counts5[z2].cond3.g2a++;
+									c_update(counts5, z2, g2a);
 								}
 							} else {
 								if (z1 < opt->window) {
-									counts5[z1].c2t++;
-									if (cond & 0x1)
-										counts5[z1].cond5.c2t++;
-									if (cond & 0x2)
-										counts5[z1].cond3.c2t++;
+									c_update(counts5, z1, c2t);
 								} else if (z2 < opt->window) {
-									counts3[z2].c2t++;
-									if (cond & 0x1)
-										counts3[z2].cond5.c2t++;
-									if (cond & 0x2)
-										counts3[z2].cond3.c2t++;
+									c_update(counts3, z2, c2t);
 								}
 							}
 						}
@@ -281,31 +284,15 @@ condamage(opt_t *opt)
 
 						if (bam_is_rev(b)) {
 							if (z1 < opt->window) {
-								counts3[z1].c++;
-								if (cond & 0x1)
-									counts3[z1].cond5.c++;
-								if (cond & 0x2)
-									counts3[z1].cond3.c++;
+								c_update(counts3, z1, c);
 							} else if (z2 < opt->window) {
-								counts5[z2].c++;
-								if (cond & 0x1)
-									counts5[z2].cond5.c++;
-								if (cond & 0x2)
-									counts5[z2].cond3.c++;
+								c_update(counts5, z2, c);
 							}
 						} else {
 							if (z1 < opt->window) {
-								counts5[z1].g++;
-								if (cond & 0x1)
-									counts5[z1].cond5.g++;
-								if (cond & 0x2)
-									counts5[z1].cond3.g++;
+								c_update(counts5, z1, g);
 							} else if (z2 < opt->window) {
-								counts3[z2].g++;
-								if (cond & 0x1)
-									counts3[z2].cond5.g++;
-								if (cond & 0x2)
-									counts3[z2].cond3.g++;
+								c_update(counts3, z2, g);
 							}
 						}
 
@@ -313,32 +300,16 @@ condamage(opt_t *opt)
 						if (c1 == 'A') {
 							if (bam_is_rev(b)) {
 								if (z1 < opt->window) {
-									counts3[z1].c2t++;
-									if (cond & 0x1)
-										counts3[z1].cond5.c2t++;
-									if (cond & 0x2)
-										counts3[z1].cond3.c2t++;
+									c_update(counts3, z1, c2t);
 								} else if (z2 < opt->window) {
-									counts5[z2].c2t++;
-									if (cond & 0x1)
-										counts5[z2].cond5.c2t++;
-									if (cond & 0x2)
-										counts5[z2].cond3.c2t++;
+									c_update(counts5, z2, c2t);
 								}
 
 							} else {
 								if (z1 < opt->window) {
-									counts5[z1].g2a++;
-									if (cond & 0x1)
-										counts5[z1].cond5.g2a++;
-									if (cond & 0x2)
-										counts5[z1].cond3.g2a++;
+									c_update(counts5, z1, g2a);
 								} else if (z2 < opt->window) {
-									counts3[z2].g2a++;
-									if (cond & 0x1)
-										counts3[z2].cond5.g2a++;
-									if (cond & 0x2)
-										counts3[z2].cond3.g2a++;
+									c_update(counts3, z2, g2a);
 								}
 							}
 						}
@@ -396,63 +367,35 @@ condamage(opt_t *opt)
 	printf("\n");
 
 
-	// conditional on 5' mismatch
-	printf("#COND5_C2T5\ti\tmm\tn\n");
-	printf("# COND5_C2T5  C to T mismatches towards the 5' end,\n");
-	printf("#             conditional on a C to T mismatch at the most 5' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND5_C2T5\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts5[i].cond5.c2t, (uintmax_t)counts5[i].cond5.c);
-	printf("\n");
+	// conditional stats
+	int win, k;
+	for (win=0; win<2; win++) {
+		char ch_win = "53"[win];
+		struct counts *cnts;
 
-	printf("#COND5_C2T3\ti\tmm\tn\n");
-	printf("# COND5_C2T3  C to T mismatches towards the 3' end,\n");
-	printf("#             conditional on a C to T mismatch at the most 5' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND5_C2T3\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts3[i].cond5.c2t, (uintmax_t)counts3[i].cond5.c);
-	printf("\n");
+		if (win == 0)
+			cnts = counts5;
+		else
+			cnts = counts3;
 
-	printf("#COND5_G2A5\ti\tmm\tn\n");
-	printf("# COND5_G2A5  G to A mismatches towards the 5' end,\n");
-	printf("#             conditional on a C to T mismatch at the most 5' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND5_G2A5\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts5[i].cond5.g2a, (uintmax_t)counts5[i].cond5.g);
-	printf("\n");
+		for (k=0; k<4; k++) {
+			char *str_cond = ((char *[]){"5C2T", "3C2T", "5G2A", "3G2A"})[k];
 
-	printf("#COND5_G2A3\ti\tmm\tn\n");
-	printf("# COND5_G2A3  G to A mismatches towards the 3' end,\n");
-	printf("#             conditional on a C to T mismatch at the most 5' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND5_G2A3\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts3[i].cond5.g2a, (uintmax_t)counts3[i].cond5.g);
-	printf("\n");
+			printf("#C2T%c|%s\ti\tmm\tn\n", ch_win, str_cond);
+			printf("# C2T%c|%s  C to T mismatches towards the %c' end,\n", ch_win, str_cond, ch_win);
+			printf("#            conditional on a %c to %c mismatch at the most %c' position\n", str_cond[1], str_cond[3], str_cond[0]);
+			for (i=0; i<opt->window; i++)
+				printf("C2T%c|%s\t%d\t%jd\t%jd\n", ch_win, str_cond, i+1, (uintmax_t)cnts[i].cond[k].c2t, (uintmax_t)cnts[i].cond[k].c);
+			printf("\n");
 
-	// conditional on 3' mismatch
-	printf("#COND3_C2T5\ti\tmm\tn\n");
-	printf("# COND3_C2T5  C to T mismatches towards the 5' end,\n");
-	printf("#             conditional on a G to A mismatch at the most 3' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND3_C2T5\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts5[i].cond3.c2t, (uintmax_t)counts5[i].cond3.c);
-	printf("\n");
-
-	printf("#COND3_C2T3\ti\tmm\tn\n");
-	printf("# COND3_C2T3  C to T mismatches towards the 3' end,\n");
-	printf("#             conditional on a G to A mismatch at the most 3' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND3_C2T3\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts3[i].cond3.c2t, (uintmax_t)counts3[i].cond3.c);
-	printf("\n");
-
-	printf("#COND3_G2A5\ti\tmm\tn\n");
-	printf("# COND3_G2A5  G to A mismatches towards the 5' end,\n");
-	printf("#             conditional on a G to A mismatch at the most 3' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND3_G2A5\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts5[i].cond3.g2a, (uintmax_t)counts5[i].cond3.g);
-	printf("\n");
-
-	printf("#COND3_G2A3\ti\tmm\tn\n");
-	printf("# COND3_G2A3  G to A mismatches towards the 3' end,\n");
-	printf("#             conditional on a G to A mismatch at the most 3' position\n");
-	for (i=0; i<opt->window; i++)
-		printf("COND3_G2A3\t%d\t%jd\t%jd\n", i+1, (uintmax_t)counts3[i].cond3.g2a, (uintmax_t)counts3[i].cond3.g);
-	printf("\n");
+			printf("#G2A%c|%s\ti\tmm\tn\n", ch_win, str_cond);
+			printf("# G2A%c|%s  G to A mismatches towards the %c' end,\n", ch_win, str_cond, ch_win);
+			printf("#            conditional on a %c to %c mismatch at the most %c' position\n", str_cond[1], str_cond[3], str_cond[0]);
+			for (i=0; i<opt->window; i++)
+				printf("G2A%c|%s\t%d\t%jd\t%jd\n", ch_win, str_cond, i+1, (uintmax_t)cnts[i].cond[k].g2a, (uintmax_t)cnts[i].cond[k].g);
+			printf("\n");
+		}
+	}
 
 
 	ret = 0;
@@ -526,7 +469,6 @@ main(int argc, char **argv)
 	if (argc-optind != 2) {
 		usage(argv[0], &opt);
 	}
-
 
 	opt.bam_fn = argv[optind];
 	opt.fasta_fn = argv[optind+1];
