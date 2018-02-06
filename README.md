@@ -12,24 +12,24 @@ script requires **python** (tested with versions **2.7.14** and **3.6.1**) and
 Clone the git repository, then build with `make`.
 
 # Usage
-1) Ensure the reference assembly has been indexed with `samtools` to create an
+* Ensure the reference assembly has been indexed with `samtools` to create an
 `fai` file. Ie. run
 ```
 samtools faidx ref.fasta
 ```
 
-2) Score the post-mortem damage patterns in `file.bam`, that was aligned to the
+* Score the post-mortem damage patterns in `file.bam`, that was aligned to the
 reference assembly `ref.fasta`.
 ```
 condamage file.bam ref.fasta > mismatches.txt
 ```
 
-3a) Plot the damage patterns (double stranded library).
+* Plot the damage patterns (double stranded library).
 ```
 plot_condamage.py -o mismatches.pdf mismatches.txt
 ```
 
-3b) Plot the damage patterns (single stranded library).
+* Plot the damage patterns (single stranded library).
 ```
 plot_condamage.py -s -o mismatches.pdf mismatches.txt
 ```
