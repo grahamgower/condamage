@@ -4,12 +4,12 @@ deamination at the most 5' position, and patterns conditional on deamination
 at the most 3' position.
 
 # Prerequisites
-Condamage uses *htslib* to parse bam and indexed fasta files.  The plotting
-script requires *python* (tested with versions *2.7.14* and *3.6.1*) and
-*matplotlib* (tested with version *2.1.0*)
+Condamage uses **htslib** to parse bam and indexed fasta files.  The plotting
+script requires **python** (tested with versions **2.7.14** and **3.6.1**) and
+**matplotlib** (tested with version **2.1.0**)
 
 # Installation
-Check out the git repository, then build with `make`.
+Clone the git repository, then build with `make`.
 
 # Usage
 1) Ensure the reference assembly has been indexed with `samtools` to create an
@@ -24,7 +24,12 @@ reference assembly `ref.fasta`.
 condamage file.bam ref.fasta > mismatches.txt
 ```
 
-3) Plot the damage patterns.
+3a) Plot the damage patterns (double stranded library).
 ```
 plot_condamage.py -o mismatches.pdf mismatches.txt
+```
+
+3b) Plot the damage patterns (single stranded library).
+```
+plot_condamage.py -s -o mismatches.pdf mismatches.txt
 ```
