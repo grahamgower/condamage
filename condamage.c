@@ -258,6 +258,9 @@ condamage(opt_t *opt)
 			// skip these
 			continue;
 
+		if (c->flag & BAM_FPAIRED)
+			continue;
+
 		if (opt->fwd_only && bam_is_rev(b))
 			continue;
 
