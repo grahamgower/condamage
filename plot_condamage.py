@@ -80,9 +80,9 @@ def parse_condamage(fn, singlestranded, fl_alpha=0.005):
         k -= 1
         area += fla[k]
 
-    flx = np.arange(j,k+1)
     fla = np.array(fla[j:k+1], dtype=float)
     flb = np.array(flb[j:k+1], dtype=float)
+    flx = np.arange(j,j+len(fla))
 
     return dmg, flx, fla, flb
 
