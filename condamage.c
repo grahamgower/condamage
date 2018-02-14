@@ -272,6 +272,7 @@ condamage(opt_t *opt)
 		    y; // offset in query seq
 		char c1, c2;
 
+		int hclip = 0;
 		int b_out = 0;
 		int cond = 0;
 
@@ -453,6 +454,8 @@ condamage(opt_t *opt)
 				y += l;
 			} else if (op == BAM_CREF_SKIP || op == BAM_CDEL) {
 				x += l;
+			} else if (op == BAM_CHARD_CLIP) {
+				hclip += l;
 			}
 
 		}
@@ -464,6 +467,8 @@ condamage(opt_t *opt)
 				goto err10;
 			}
 		}
+
+		y += hclip;
 
 		if (y < opt->lmax) {
 			lhist[y]++;
