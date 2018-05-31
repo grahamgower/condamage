@@ -69,7 +69,7 @@ def parse_condamage(fn, singlestranded, fl_alpha=0.005):
 
     # ignore leading zeros
     j = 0
-    while j<50 and fla[j] == 0:
+    while j<min(50,len(fla)) and fla[j] == 0:
         j += 1
 
     # ignore fl_alpha of the tail
@@ -152,7 +152,9 @@ if __name__ == "__main__":
     ymax = 0
     for k in k5list:
         k5 = k.replace("?", "5", 1)
-        assert k5 in dmg, "{} missing from {}".format(k5, args.infile)
+        if k5 not in dmg:
+            print("{}: no counts for {}, bailing".format(args.infile, k5))
+            exit(1)
         ecol, col, ls, m, lbl = plotmeta[k]
         ax1.plot(dmg[k5][0], dmg[k5][1], color=col, markeredgecolor=ecol, linestyle=ls, marker=m, label=lbl, alpha=alpha)
 
@@ -165,7 +167,9 @@ if __name__ == "__main__":
 
     for k in k3list:
         k3 = k.replace("?", "3", 1)
-        assert k3 in dmg, "{} missing from {}".format(k3, args.infile)
+        if k3 not in dmg:
+            print("{}: no counts for {}, bailing".format(args.infile, k3))
+            exit(1)
         ecol, col, ls, m, lbl = plotmeta[k]
         ax2.plot(dmg[k3][0], dmg[k3][1], color=col, markeredgecolor=ecol, linestyle=ls, marker=m, label=lbl, alpha=alpha)
 
