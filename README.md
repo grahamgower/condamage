@@ -49,7 +49,7 @@ plot_condamage.py -s -o mismatches.pdf mismatches.txt
 
 # Example output
 
-See [](example/Turdus_poliocephalus_erythropleurus_AMNH768697.txt)
+See [here](example/Turdus_poliocephalus_erythropleurus_AMNH768697.txt)
 for an example of the `condamage` output and the resulting plots below.
 This sequencing data comes from the toepad of a 70 year old museum specimen.
 Note the interesting fragment length distribution, which exhibits periodic
